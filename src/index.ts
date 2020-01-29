@@ -273,11 +273,18 @@ export class GraphQLServer {
           throw e
         }
 
+        const formatErrorHandler =
+          this.options.formatError || defaultErrorFormatter
+
+        const formatError = error => {
+          return formatErrorHandler(error, context)
+        }
+
         return {
           schema: this.executableSchema,
           tracing: tracing(request),
           cacheControl: this.options.cacheControl,
-          formatError: this.options.formatError || defaultErrorFormatter,
+          formatError,
           logFunction: this.options.logFunction,
           rootValue: this.options.rootValue,
           validationRules:
@@ -365,14 +372,14 @@ export class GraphQLServer {
 
   start(
     options: Options,
-    callback?: ((options: Options) => void),
+    callback?: (options: Options) => void,
   ): Promise<HttpServer | HttpsServer>
   start(
-    callback?: ((options: Options) => void),
+    callback?: (options: Options) => void,
   ): Promise<HttpServer | HttpsServer>
   start(
     optionsOrCallback?: Options | ((options: Options) => void),
-    callback?: ((options: Options) => void),
+    callback?: (options: Options) => void,
   ): Promise<HttpServer | HttpsServer> {
     const options =
       optionsOrCallback && typeof optionsOrCallback === 'function'
@@ -381,8 +388,8 @@ export class GraphQLServer {
     const callbackFunc = callback
       ? callback
       : optionsOrCallback && typeof optionsOrCallback === 'function'
-        ? optionsOrCallback
-        : () => null
+      ? optionsOrCallback
+      : () => null
 
     const server = this.createHttpServer(options as Options)
 
