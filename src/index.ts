@@ -44,6 +44,8 @@ import {
 } from './types'
 import { ITypeDefinitions } from 'graphql-tools/dist/Interfaces'
 import { defaultErrorFormatter } from './defaultErrorFormatter'
+import { GraphQLExecutor } from 'apollo-server-core'
+import { executor } from './executor'
 
 export { MockList } from 'graphql-tools'
 export { PubSub, withFilter } from 'graphql-subscriptions'
@@ -75,6 +77,7 @@ export class GraphQLServer {
     playground: '/',
   }
   executableSchema: GraphQLSchema
+  executor: GraphQLExecutor
   context: any
 
   private middlewareFragmentReplacements: FragmentReplacement[] = []
@@ -94,6 +97,8 @@ export class GraphQLServer {
 
     if (props.schema) {
       this.executableSchema = props.schema
+
+      this.executor = executor(this.executableSchema)
     } else if (props.typeDefs && props.resolvers) {
       const {
         directiveResolvers,
@@ -120,6 +125,8 @@ export class GraphQLServer {
 
         resolverValidationOptions,
       })
+
+      this.executor = executor(this.executableSchema)
 
       if (mocks) {
         addMockFunctionsToSchema({
@@ -304,6 +311,7 @@ export class GraphQLServer {
             formatResponse: formatResponse(request),
             debug: this.options.debug,
             context,
+            executor: this.executor,
           })
         })
       }),
