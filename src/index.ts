@@ -1,4 +1,4 @@
-import { graphqlExpress } from 'apollo-server-express'
+import { graphqlExpress } from 'apollo-server-express/dist/expressApollo'
 import { graphqlUploadExpress, GraphQLUpload } from 'graphql-upload'
 import * as bodyParser from 'body-parser-graphql'
 import * as cors from 'cors'
@@ -41,7 +41,6 @@ import {
   OptionsWithHttps,
   OptionsWithoutHttps,
   Props,
-  ValidationRules,
 } from './types'
 import { ITypeDefinitions } from 'graphql-tools/dist/Interfaces'
 import { defaultErrorFormatter } from './defaultErrorFormatter'
@@ -49,7 +48,6 @@ import { defaultErrorFormatter } from './defaultErrorFormatter'
 export { MockList } from 'graphql-tools'
 export { PubSub, withFilter } from 'graphql-subscriptions'
 export { Options, OptionsWithHttps, OptionsWithoutHttps }
-export { GraphQLServerLambda } from './lambda'
 
 // TODO remove once `@types/graphql` is fixed for `execute`
 type ExecuteFunction = (
@@ -75,7 +73,6 @@ export class GraphQLServer {
     endpoint: '/',
     subscriptions: '/',
     playground: '/',
-    getEndpoint: false,
   }
   executableSchema: GraphQLSchema
   context: any
@@ -183,19 +180,22 @@ export class GraphQLServer {
       if (typeof t === 'boolean') {
         return t
       } else if (t.mode === 'http-header') {
-        return req.get('x-apollo-tracing') !== undefined
+        // @ts-ignore
+        return !!req.headers['x-apollo-tracing']
       } else {
         return t.mode === 'enabled'
       }
     }
 
-    const formatResponse = (req: express.Request) => {
+    // @ts-ignore
+    const formatResponse = (req: express.Request<any>) => {
       if (!this.options.deduplicator) {
         return this.options.formatResponse
       }
       return (response, ...args) => {
         if (
-          req.get('X-GraphQL-Deduplicate') &&
+          // @ts-ignore
+          !!req.headers['x-graphql-deduplicate'] &&
           response.data &&
           !response.data.__schema
         ) {
@@ -217,6 +217,7 @@ export class GraphQLServer {
 
     app.post(
       this.options.endpoint,
+      // @ts-ignore
       bodyParser.graphql(this.options.bodyParserOptions),
     )
 
@@ -235,8 +236,10 @@ export class GraphQLServer {
     while (this.middlewares.use.length > 0) {
       const middleware = this.middlewares.use.shift()
       if (middleware.path) {
+        // @ts-ignore
         app.use(middleware.path, ...middleware.handlers)
       } else {
+        // @ts-ignore
         app.use(...middleware.handlers)
       }
     }
@@ -244,6 +247,7 @@ export class GraphQLServer {
     while (this.middlewares.get.length > 0) {
       const middleware = this.middlewares.get.shift()
       if (middleware.path) {
+        // @ts-ignore
         app.get(middleware.path, ...middleware.handlers)
       }
     }
@@ -251,90 +255,59 @@ export class GraphQLServer {
     while (this.middlewares.post.length > 0) {
       const middleware = this.middlewares.post.shift()
       if (middleware.path) {
+        // @ts-ignore
         app.post(middleware.path, ...middleware.handlers)
       }
     }
 
     app.post(
       this.options.endpoint,
-      graphqlExpress(async (request, response) => {
-        let context
-        try {
-          context =
-            typeof this.context === 'function'
-              ? await this.context({
-                  request,
-                  response,
-                  fragmentReplacements: this.middlewareFragmentReplacements,
-                })
-              : this.context
-        } catch (e) {
-          console.error(e)
-          throw e
-        }
-
-        const formatErrorHandler =
-          this.options.formatError || defaultErrorFormatter
-
-        const formatError = error => {
-          return formatErrorHandler(error, context)
-        }
-
-        return {
-          schema: this.executableSchema,
-          tracing: tracing(request),
-          cacheControl: this.options.cacheControl,
-          formatError,
-          logFunction: this.options.logFunction,
-          rootValue: this.options.rootValue,
-          validationRules:
-            typeof this.options.validationRules === 'function'
-              ? this.options.validationRules(request, response)
-              : this.options.validationRules,
-          fieldResolver: this.options.fieldResolver || defaultMergedResolver,
-          formatParams: this.options.formatParams,
-          formatResponse: formatResponse(request),
-          debug: this.options.debug,
-          context,
-        }
-      }),
-    )
-
-    // Only add GET endpoint if opted in
-    if (this.options.getEndpoint) {
-      app.get(
-        this.options.getEndpoint === true
-          ? this.options.endpoint
-          : this.options.getEndpoint,
-        graphqlExpress(async (request, response) => {
+      graphqlExpress((request, response) => {
+        return new Promise(async (resolve, reject) => {
           let context
           try {
             context =
               typeof this.context === 'function'
-                ? await this.context({ request, response })
+                ? await this.context({
+                    request,
+                    response,
+                    fragmentReplacements: this.middlewareFragmentReplacements,
+                  })
                 : this.context
           } catch (e) {
             console.error(e)
             throw e
           }
 
-          return {
+          const formatErrorHandler =
+            this.options.formatError || defaultErrorFormatter
+
+          const formatError = error => {
+            return formatErrorHandler(error, context)
+          }
+
+          return resolve({
             schema: this.executableSchema,
             tracing: tracing(request),
             cacheControl: this.options.cacheControl,
-            formatError: this.options.formatError || defaultErrorFormatter,
+            formatError,
+            // @ts-ignore
             logFunction: this.options.logFunction,
             rootValue: this.options.rootValue,
-            validationRules: this.options.validationRules as ValidationRules,
+            validationRules:
+              typeof this.options.validationRules === 'function'
+                ? this.options.validationRules(request, response)
+                : this.options.validationRules,
             fieldResolver: this.options.fieldResolver || defaultMergedResolver,
+            // @ts-ignore
             formatParams: this.options.formatParams,
-            formatResponse: this.options.formatResponse,
+            formatResponse: formatResponse(request),
             debug: this.options.debug,
             context,
-          }
-        }),
-      )
-    }
+          })
+        })
+      }),
+    )
 
     if (this.options.playground) {
       const playgroundOptions = {
