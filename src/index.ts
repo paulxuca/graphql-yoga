@@ -98,7 +98,9 @@ export class GraphQLServer {
     if (props.schema) {
       this.executableSchema = props.schema
 
-      this.executor = executor(this.executableSchema)
+      if (props.graphqlJitExecutor) {
+        this.executor = executor(this.executableSchema)
+      }
     } else if (props.typeDefs && props.resolvers) {
       const {
         directiveResolvers,

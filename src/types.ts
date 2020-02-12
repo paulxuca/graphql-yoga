@@ -113,6 +113,7 @@ export interface Props<
   schema?: GraphQLSchema
   context?: Context | ContextCallback
   mocks?: IMocks | boolean
+  graphqlJitExecutor?: boolean
   middlewares?: (
     | IFieldMiddleware<
         TFieldMiddlewareSource,
