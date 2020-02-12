@@ -128,7 +128,9 @@ export class GraphQLServer {
         resolverValidationOptions,
       })
 
-      this.executor = executor(this.executableSchema)
+      if (props.graphqlJitExecutor) {
+        this.executor = executor(this.executableSchema)
+      }
 
       if (mocks) {
         addMockFunctionsToSchema({
